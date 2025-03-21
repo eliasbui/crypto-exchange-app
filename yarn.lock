@@ -3619,9 +3619,9 @@ expo-modules-core@2.2.3:
   dependencies:
     invariant "^2.2.4"
 
-expo-notifications@^0.29.14:
+expo-notifications@~0.29.14:
   version "0.29.14"
-  resolved "https://registry.npmjs.org/expo-notifications/-/expo-notifications-0.29.14.tgz"
+  resolved "https://registry.yarnpkg.com/expo-notifications/-/expo-notifications-0.29.14.tgz#77beb6bc74b1b1abfa3adcab77fb6c9ea5d7d1b0"
   integrity sha512-AVduNx9mKOgcAqBfrXS1OHC9VAQZrDQLbVbcorMjPDGXW7m0Q5Q+BG6FYM/saVviF2eO8fhQRsTT40yYv5/bhQ==
   dependencies:
     "@expo/image-utils" "^0.6.5"

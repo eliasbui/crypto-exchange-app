@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { create } from 'zustand';
+import Constants from 'expo-constants';
 
 interface NotificationState {
   hasPermission: boolean;
@@ -53,9 +54,8 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 }));
 
 class NotificationService {
-  static async initialize() {
+  async initialize() {
     try {
-      // Request permission for push notifications
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
@@ -64,7 +64,33 @@ class NotificationService {
         finalStatus = status;
       }
       
-      useNotificationStore.getState().setPermission(finalStatus === 'granted');
+      if (finalStatus !== 'granted') {
+        throw new Error('Permission not granted for notifications');
+      }
+
+      // Configure notification behavior
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        }),
+      });
+
+      // Set project ID from app config
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      if (projectId && typeof projectId === 'string') {
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'default',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+            enableVibrate: true,
+            enableLights: true,
+          });
+        }
+      }
 
       // Get push token if permission granted
       if (finalStatus === 'granted') {
@@ -72,44 +98,30 @@ class NotificationService {
         useNotificationStore.getState().setPushToken(token);
       }
 
-      // Handle notification received while app is running
-      Notifications.addNotificationReceivedListener(this.handleNotificationReceived);
+      // Set up notification listeners
+      const notificationListener = Notifications.addNotificationReceivedListener(
+        this.handleNotificationReceived
+      );
       
-      // Handle notification tapped
-      Notifications.addNotificationResponseReceivedListener(this.handleNotificationResponse);
+      const responseListener = Notifications.addNotificationResponseReceivedListener(
+        this.handleNotificationResponse
+      );
+
+      return () => {
+        Notifications.removeNotificationSubscription(notificationListener);
+        Notifications.removeNotificationSubscription(responseListener);
+      };
     } catch (error) {
       console.error('Error initializing notifications:', error);
     }
   }
 
-  static handleNotificationReceived = (notification: Notifications.Notification) => {
-    const { title, body, data } = notification.request.content;
-    
-    // Add to notification store
-    useNotificationStore.getState().addNotification({
-      id: notification.request.identifier,
-      title: title || '',
-      body: body || '',
-      type: data?.type || 'system',
-      timestamp: Date.now(),
-      read: false,
-      data: data,
-    });
+  handleNotificationReceived = (notification: Notifications.Notification) => {
+    console.log('Notification received:', notification);
   };
 
-  static handleNotificationResponse = (response: Notifications.NotificationResponse) => {
-    const { notification } = response;
-    const data = notification.request.content.data;
-
-    // Mark notification as read
-    useNotificationStore.getState().markAsRead(notification.request.identifier);
-
-    // Handle notification tap based on type
-    if (data?.type === 'transaction') {
-      // Navigate to transaction details
-    } else if (data?.type === 'security') {
-      // Navigate to security settings
-    }
+  handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+    console.log('Notification response:', response);
   };
 
   static async sendLocalNotification(
@@ -197,4 +209,4 @@ class NotificationService {
   }
 }
 
-export default NotificationService; 
+export default new NotificationService(); 

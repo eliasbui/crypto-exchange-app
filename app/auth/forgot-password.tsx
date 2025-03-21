@@ -6,10 +6,11 @@ import { useAuthStore } from '../../store/authStore';
 import { getTheme, spacing, radius } from '../../constants/theme';
 import Text from '../../components/ui/Text';
 import Button from '../../components/ui/Button';
-import { router } from 'expo-router';
+import { router, useRootNavigationState } from 'expo-router';
 import * as Animatable from 'react-native-animatable';
 
 export default function ForgotPasswordScreen() {
+  const navigationState = useRootNavigationState();
   const theme = getTheme(useUIStore((state) => state.theme));
   const { setTempEmail, setOtpPurpose } = useAuthStore();
   
@@ -31,8 +32,10 @@ export default function ForgotPasswordScreen() {
       setTempEmail(email);
       setOtpPurpose('reset-password');
       
-      // Navigate to OTP verification screen
-      router.replace('/auth/verify-otp' as any);
+      // Only navigate when navigation is ready
+      if (navigationState?.key) {
+        router.replace('/auth/verify-otp');
+      }
     } catch (error) {
       console.error('Forgot password error:', error);
       setError('Failed to process request. Please try again.');

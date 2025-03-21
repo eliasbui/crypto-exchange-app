@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "crypto-exchange-app",
-    "slug": "crypto-exchange-app",
+    "slug": "cryto",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -30,10 +30,17 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f42d6945-9a15-43dc-8b70-3af8d3d39883"
+      }
+    },
+    "owner": "dthai16gg"
   }
 }

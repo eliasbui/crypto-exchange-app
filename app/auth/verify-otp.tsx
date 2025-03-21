@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import { getTheme, spacing, radius } from '../../constants/theme';
 import Text from '../../components/ui/Text';
 import Button from '../../components/ui/Button';
-import { router } from 'expo-router';
+import { router, useRootNavigationState } from 'expo-router';
 import * as Animatable from 'react-native-animatable';
 import OtpInput from '../../components/ui/OtpInput';
 
@@ -14,6 +14,7 @@ const OTP_LENGTH = 6;
 const RESEND_DELAY = 30; // seconds
 
 export default function VerifyOtpScreen() {
+  const navigationState = useRootNavigationState();
   const theme = getTheme(useUIStore((state) => state.theme));
   const { 
     tempEmail,
@@ -29,14 +30,14 @@ export default function VerifyOtpScreen() {
   const [resendTimer, setResendTimer] = useState(0);
 
   useEffect(() => {
-    // Send OTP when screen mounts
-    handleSendOTP();
+    if (navigationState?.key) {
+      handleSendOTP();
+    }
     
     return () => {
-      // Reset OTP verification status when unmounting
       resetOtpVerification();
     };
-  }, []);
+  }, [navigationState?.key]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -76,13 +77,13 @@ export default function VerifyOtpScreen() {
       setError('');
       
       const isValid = await verifyOTP(otp);
-      if (isValid) {
+      if (isValid && navigationState?.key) {
         if (otpPurpose === 'register') {
-          router.replace('/auth/complete-registration' as any);
+          router.replace('/auth/register');
         } else if (otpPurpose === 'reset-password') {
-          router.replace('/auth/reset-password' as any);
+          router.replace('/auth/reset-password');
         }
-      } else {
+      } else if (!isValid) {
         setError('Invalid verification code');
         setOtp('');
       }
