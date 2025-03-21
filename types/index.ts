@@ -4,6 +4,7 @@ export interface User {
   email: string;
   avatar?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface Cryptocurrency {
@@ -60,27 +61,31 @@ export interface AuthState {
   isPinEnabled: boolean;
   isOtpEnabled: boolean;
   pinCode: string;
+  isLoading: boolean;
+  error: string | null;
+  emailVerificationEnabled: boolean;
+  requireAuth: boolean;
   
   // Auth methods
   login: (email: string, password: string) => Promise<boolean>;
-  register: (username: string, email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  verifyAuth: () => Promise<boolean>;
+  verifyPinCode: (pin: string) => Promise<boolean>;
+  setPinCode: (pin: string) => Promise<boolean>;
+  setBiometricEnabled: (enabled: boolean) => Promise<boolean>;
+  setOtpEnabled: (enabled: boolean) => Promise<boolean>;
+  setPinEnabled: (enabled: boolean) => Promise<boolean>;
   
-  // OTP methods
+  // Other methods
   setTempEmail: (email: string) => void;
   setOtpPurpose: (purpose: string) => void;
   verifyOTP: (otp: string) => Promise<boolean>;
   resetOtpVerification: () => void;
-  completeLogin: () => Promise<boolean>;
-  completeRegistration: (username: string) => Promise<boolean>;
+  register: (username: string, email: string, password: string) => Promise<boolean>;
+  logout: () => void;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
+  sendEmailOTP: () => Promise<void>;
+  verifyEmailOTP: (code: string) => Promise<boolean>;
   resetPassword: (newPassword: string) => Promise<boolean>;
-  
-  // Authentication settings
-  setBiometricEnabled: (enabled: boolean) => Promise<boolean>;
-  setPinEnabled: (enabled: boolean) => Promise<boolean>;
-  setPinCode: (pinCode: string) => Promise<boolean>;
-  verifyPinCode: (pinCode: string) => boolean;
-  setOtpEnabled: (enabled: boolean) => Promise<boolean>;
 }
 
 export interface CryptoState {

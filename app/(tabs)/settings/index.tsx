@@ -3,11 +3,11 @@ import { View, StyleSheet, ScrollView, Switch, TouchableOpacity, Alert } from 'r
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Animatable from 'react-native-animatable';
-import { useUIStore } from '../../store/uiStore';
-import { useAuthStore } from '../../store/authStore';
-import { getTheme, spacing, radius } from '../../constants/theme';
-import Text from '../../components/ui/Text';
-import Card from '../../components/ui/Card';
+import { useUIStore } from '../../../store/uiStore';
+import { useAuthStore } from '../../../store/authStore';
+import { getTheme, spacing, radius } from '../../../constants/theme';
+import Text from '../../../components/ui/Text';
+import Card from '../../../components/ui/Card';
 import { router } from 'expo-router';
 
 // Define setting sections and items
@@ -25,57 +25,7 @@ export default function SettingsScreen() {
   const themeType = useUIStore((state) => state.theme);
   const theme = getTheme(themeType);
   const { toggleTheme } = useUIStore();
-  const { logout, user, isBiometricEnabled, isPinEnabled } = useAuthStore();
-  
-  // Handle navigation to different screens
-  const navigateTo = (route: string) => {
-    switch (route) {
-      case '/settings/trading':
-        router.push('/settings/trading' as any);
-        break;
-      case '/settings/trading-history':
-        router.push('/settings/trading-history' as any);
-        break;
-      case '/settings/order-book':
-        router.push('/settings/order-book' as any);
-        break;
-      case '/settings/wallet':
-        router.push('/settings/wallet' as any);
-        break;
-      case '/settings/transactions':
-        router.push('/settings/transactions' as any);
-        break;
-      case '/settings/transaction-history':
-        router.push('/settings/transaction-history' as any);
-        break;
-      case '/settings/auth-settings':
-        router.push('/settings/auth-settings' as any);
-        break;
-      case '/settings/profile':
-        router.push('/settings/profile' as any);
-        break;
-      case '/settings/notifications':
-        router.push('/settings/notifications' as any);
-        break;
-      case '/settings/currency':
-        router.push('/settings/currency' as any);
-        break;
-      case '/settings/help':
-        router.push('/settings/help' as any);
-        break;
-      case '/settings/privacy':
-        router.push('/settings/privacy' as any);
-        break;
-      case '/settings/terms':
-        router.push('/settings/terms' as any);
-        break;
-      case '/settings/about':
-        router.push('/settings/about' as any);
-        break;
-      default:
-        console.log(`Unknown route: ${route}`);
-    }
-  };
+  const { logout, user, isBiometricEnabled, isPinEnabled, isOtpEnabled } = useAuthStore();
   
   // Handle logout action
   const handleLogout = () => {
@@ -91,7 +41,7 @@ export default function SettingsScreen() {
           text: "Logout", 
           onPress: () => {
             logout();
-            router.replace('/auth/login' as any);
+            router.replace('/auth/login');
           }
         }
       ]
@@ -99,21 +49,44 @@ export default function SettingsScreen() {
   };
   
   // Define settings sections
+  const profileSettings: SettingItem[] = [
+    {
+      icon: 'account',
+      title: 'Profile',
+      subtitle: 'View and edit your profile',
+      action: 'navigate',
+      route: '/(tabs)/settings/profile',
+    },
+    {
+      icon: 'bell',
+      title: 'Notifications',
+      subtitle: 'Manage your notification preferences',
+      action: 'navigate',
+      route: '/(tabs)/settings/notifications',
+    },
+  ];
+
   const securitySettings: SettingItem[] = [
     {
       icon: 'fingerprint',
       title: 'Biometric Authentication',
-      subtitle: 'Use fingerprint or face ID',
-      action: 'toggle',
-      value: isBiometricEnabled,
-      onPress: () => router.push('/settings/auth-settings' as any),
+      subtitle: isBiometricEnabled ? 'Enabled' : 'Disabled',
+      action: 'navigate',
+      route: '/(tabs)/settings/auth-settings',
     },
     {
       icon: 'pin',
       title: 'PIN Code',
       subtitle: isPinEnabled ? 'Change PIN code' : 'Set up PIN code',
       action: 'navigate',
-      route: '/settings/set-pin',
+      route: '/(tabs)/settings/setup-pin',
+    },
+    {
+      icon: 'email',
+      title: 'Two-Factor Authentication',
+      subtitle: isOtpEnabled ? 'Enabled' : 'Disabled',
+      action: 'navigate',
+      route: '/(tabs)/settings/auth-settings',
     },
   ];
   
@@ -125,9 +98,40 @@ export default function SettingsScreen() {
       value: themeType === 'dark',
       onPress: toggleTheme,
     },
+    {
+      icon: 'translate',
+      title: 'Language',
+      subtitle: 'English',
+      action: 'navigate',
+      route: '/(tabs)/settings/language',
+    },
   ];
   
   const accountSettings: SettingItem[] = [
+    {
+      icon: 'help-circle',
+      title: 'Help & Support',
+      action: 'navigate',
+      route: '/(tabs)/settings/help',
+    },
+    {
+      icon: 'shield-check',
+      title: 'Privacy Policy',
+      action: 'navigate',
+      route: '/(tabs)/settings/privacy',
+    },
+    {
+      icon: 'file-document',
+      title: 'Terms of Service',
+      action: 'navigate',
+      route: '/(tabs)/settings/terms',
+    },
+    {
+      icon: 'information',
+      title: 'About',
+      action: 'navigate',
+      route: '/(tabs)/settings/about',
+    },
     {
       icon: 'logout',
       title: 'Logout',
@@ -225,7 +229,10 @@ export default function SettingsScreen() {
           useNativeDriver
           style={styles.profileCard}
         >
-          <View style={styles.profileInfo}>
+          <TouchableOpacity 
+            style={styles.profileInfo}
+            onPress={() => router.push('/settings/profile')}
+          >
             <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
               <MaterialCommunityIcons name="account" size={32} color="#fff" />
             </View>
@@ -233,9 +240,15 @@ export default function SettingsScreen() {
               <Text variant="h4" weight="semibold">{user?.username || 'User'}</Text>
               <Text variant="body2" color="secondaryText">{user?.email || 'user@example.com'}</Text>
             </View>
-          </View>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={24}
+              color={theme.secondaryText}
+            />
+          </TouchableOpacity>
         </Animatable.View>
 
+        {renderSection('Profile', profileSettings)}
         {renderSection('Security', securitySettings)}
         {renderSection('App Settings', appSettings)}
         {renderSection('Account', accountSettings)}
@@ -313,5 +326,6 @@ const styles = StyleSheet.create({
   },
   profileText: {
     marginLeft: spacing.md,
+    flex: 1,
   },
 }); 

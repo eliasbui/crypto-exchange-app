@@ -104,7 +104,7 @@ export default function AuthScreen() {
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Verify PIN
-    if (verifyPinCode(pinToCheck)) {
+    if (await verifyPinCode(pinToCheck)) {
       // Authenticate the user
       router.replace('/');
     } else {

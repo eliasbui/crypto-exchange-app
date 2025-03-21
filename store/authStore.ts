@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthState, User } from '../types';
 import { user as mockUser } from '../data/mockData';
+import * as SecureStore from 'expo-secure-store';
+import { API_URL } from '../config';
 
 // Storage keys
 const AUTH_USER_KEY = '@crypto_exchange_auth_user';
@@ -21,6 +23,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isPinEnabled: false,
   isOtpEnabled: false,
   pinCode: '',
+  isLoading: false,
+  error: null,
+  emailVerificationEnabled: true,
+  requireAuth: false,
   
   // Set temporary email for OTP verification
   setTempEmail: (email: string) => set({ tempEmail: email }),
@@ -49,63 +55,67 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Reset OTP verification status
   resetOtpVerification: () => set({ isOtpVerified: false }),
 
-  // Login function - simulate API call with delay
+  // Login function
   login: async (email: string, password: string) => {
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // For demo, just check if email and password are not empty
-      if (email.trim() === '' || password.trim() === '') {
-        return false;
-      }
-
-      // Store email for potential OTP verification
-      set({ tempEmail: email, otpPurpose: 'login' });
+      set({ isLoading: true, error: null });
       
-      // Check if OTP is enabled - if yes, we'll stop here and redirect to OTP screen
-      const isOtpEnabled = get().isOtpEnabled;
-      if (isOtpEnabled) {
-        return true; // Return true to indicate successful credentials check
-      }
-
-      // If OTP not enabled, proceed with login
-      const user = mockUser;
-
-      // Save to AsyncStorage
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // For demo, any email/password combination works
+      const user = {
+        ...mockUser,
+        email
+      };
+      
+      // Save to storage
       await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       await AsyncStorage.setItem(AUTH_STATUS_KEY, 'true');
-
+      
+      // Check if additional verification is needed
+      const biometricEnabled = await AsyncStorage.getItem(AUTH_BIOMETRIC_ENABLED_KEY) === 'true';
+      const pinEnabled = await AsyncStorage.getItem(AUTH_PIN_ENABLED_KEY) === 'true';
+      const otpEnabled = await AsyncStorage.getItem(AUTH_OTP_ENABLED_KEY) === 'true';
+      
       // Update state
-      set({ user, isAuthenticated: true });
+      set({ 
+        user,
+        isAuthenticated: true,
+        isBiometricEnabled: biometricEnabled,
+        isPinEnabled: pinEnabled,
+        isOtpEnabled: otpEnabled,
+        requireAuth: true // Require additional verification
+      });
+      
       return true;
     } catch (error) {
-      console.error('Login error:', error);
+      set({ error: 'Login failed. Please try again.' });
       return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
 
-  // Complete login after OTP verification
-  completeLogin: async () => {
+  // Verify authentication (biometric/PIN/OTP)
+  verifyAuth: async () => {
     try {
-      // In a real app, this would be an API call using the stored email
-      const user = mockUser;
+      set({ isLoading: true, error: null });
       
-      // Save to AsyncStorage
-      await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-      await AsyncStorage.setItem(AUTH_STATUS_KEY, 'true');
-
-      // Update state
-      set({ user, isAuthenticated: true, isOtpVerified: false });
+      // After successful verification
+      set({ requireAuth: false });
       return true;
     } catch (error) {
-      console.error('Complete login error:', error);
+      set({ error: 'Verification failed. Please try again.' });
       return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
 
   // Register function - simulate API call with delay
   register: async (username: string, email: string, password: string) => {
+    set({ isLoading: true, error: null });
     try {
       // Simulate API delay
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -135,11 +145,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(newUser));
       await AsyncStorage.setItem(AUTH_STATUS_KEY, 'true');
 
+      // Store auth token securely
+      await SecureStore.setItemAsync('authToken', 'mock-token');
+
       // Update state
       set({ user: newUser, isAuthenticated: true });
       return true;
     } catch (error) {
       console.error('Register error:', error);
+      set({ 
+        error: 'Failed to register. Please try again.',
+        isLoading: false 
+      });
       return false;
     }
   },
@@ -172,25 +189,74 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Reset password function (after OTP verification)
   resetPassword: async (newPassword: string) => {
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      set({ isLoading: true, error: null });
       
-      // In a real app, this would call an API to reset the password
-      // For demo purposes, we'll just return success
+      // Get the temp email from storage
+      const tempEmail = await SecureStore.getItemAsync('temp_email');
+      if (!tempEmail) {
+        throw new Error('No email found for password reset');
+      }
+
+      // Call API to reset password
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: tempEmail,
+          newPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reset password');
+      }
+
+      // Clear temp email from storage
+      await SecureStore.deleteItemAsync('temp_email');
       
-      // Reset OTP verification state
-      set({ isOtpVerified: false });
+      set({ isLoading: false });
       return true;
     } catch (error) {
       console.error('Reset password error:', error);
+      set({ 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to reset password' 
+      });
       return false;
     }
   },
 
-  // Authentication settings
+  // Set PIN code
+  setPinCode: async (pin: string) => {
+    try {
+      await SecureStore.setItemAsync(AUTH_PIN_CODE_KEY, pin);
+      await AsyncStorage.setItem(AUTH_PIN_ENABLED_KEY, 'true');
+      set({ pinCode: pin, isPinEnabled: true });
+      return true;
+    } catch (error) {
+      console.error('Set PIN code error:', error);
+      return false;
+    }
+  },
+
+  // Verify PIN code
+  verifyPinCode: async (pin: string) => {
+    try {
+      const storedPin = await SecureStore.getItemAsync(AUTH_PIN_CODE_KEY);
+      return storedPin === pin;
+    } catch (error) {
+      console.error('Verify PIN code error:', error);
+      return false;
+    }
+  },
+
+  // Enable/disable biometric authentication
   setBiometricEnabled: async (enabled: boolean) => {
     try {
       await AsyncStorage.setItem(AUTH_BIOMETRIC_ENABLED_KEY, String(enabled));
+      await SecureStore.setItemAsync('biometricEnabled', enabled.toString());
       set({ isBiometricEnabled: enabled });
       return true;
     } catch (error) {
@@ -210,21 +276,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   
-  setPinCode: async (pinCode: string) => {
-    try {
-      await AsyncStorage.setItem(AUTH_PIN_CODE_KEY, pinCode);
-      set({ pinCode, isPinEnabled: true });
-      return true;
-    } catch (error) {
-      console.error('Set PIN code error:', error);
-      return false;
-    }
-  },
-  
-  verifyPinCode: (pinCode: string) => {
-    return pinCode === get().pinCode;
-  },
-  
   setOtpEnabled: async (enabled: boolean) => {
     try {
       await AsyncStorage.setItem(AUTH_OTP_ENABLED_KEY, String(enabled));
@@ -238,10 +289,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Logout function
   logout: async () => {
+    set({ isLoading: true });
     try {
       // Clear from AsyncStorage
       await AsyncStorage.removeItem(AUTH_USER_KEY);
       await AsyncStorage.setItem(AUTH_STATUS_KEY, 'false');
+
+      // Clear secure storage
+      await SecureStore.deleteItemAsync('authToken');
+      await SecureStore.deleteItemAsync('pinCode');
 
       // Update state
       set({ 
@@ -250,9 +306,86 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         tempEmail: '',
         otpPurpose: '',
         isOtpVerified: false,
+        isBiometricEnabled: false,
+        isPinEnabled: false,
+        isOtpEnabled: false,
+        pinCode: '',
+        emailVerificationEnabled: true,
       });
     } catch (error) {
       console.error('Logout error:', error);
+      set({ 
+        error: 'Failed to logout. Please try again.',
+        isLoading: false 
+      });
+    }
+  },
+
+  // Update password function
+  updatePassword: async (currentPassword: string, newPassword: string) => {
+    try {
+      // Simulate API delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      
+      // In a real app, this would verify the current password with the backend
+      // and update the password if verification is successful
+      // For demo purposes, we'll just return success
+      return true;
+    } catch (error) {
+      console.error('Update password error:', error);
+      return false;
+    }
+  },
+
+  updateUser: async (user: User) => {
+    set({ isLoading: true, error: null });
+    try {
+      // In a real app, make API call to update user
+      set({ 
+        user,
+        isLoading: false 
+      });
+    } catch (error) {
+      set({ 
+        error: 'Failed to update user. Please try again.',
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  setEmailVerificationEnabled: async (enabled: boolean) => {
+    try {
+      await AsyncStorage.setItem(AUTH_PIN_ENABLED_KEY, String(enabled));
+      set({ emailVerificationEnabled: enabled });
+      return true;
+    } catch (error) {
+      throw new Error('Failed to update email verification settings');
+    }
+  },
+
+  sendEmailOTP: async () => {
+    const { user } = get();
+    if (!user?.email) {
+      throw new Error('No email address found');
+    }
+
+    try {
+      // In a real app, make API call to send OTP
+      // For demo, we'll simulate sending OTP
+      console.log('Sending OTP to:', user.email);
+    } catch (error) {
+      throw new Error('Failed to send verification code');
+    }
+  },
+
+  verifyEmailOTP: async (code: string) => {
+    try {
+      // In a real app, make API call to verify OTP
+      // For demo, we'll accept any 6-digit code
+      return code.length === 6;
+    } catch (error) {
+      throw new Error('Failed to verify code');
     }
   },
 }));

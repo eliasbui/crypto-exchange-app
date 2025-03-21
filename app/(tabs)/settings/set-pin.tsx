@@ -194,7 +194,7 @@ export default function SetPinScreen() {
                 color={theme.success} 
               />
             </View>
-            <Text variant="h5" weight="bold" style={styles.successText}>
+            <Text variant="h3" weight="bold" style={styles.successText}>
               PIN Set Successfully
             </Text>
           </Animatable.View>

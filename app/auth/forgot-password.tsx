@@ -1,94 +1,81 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, Keyboard } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { Link, useRouter } from 'expo-router';
+import { View, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { getTheme, spacing, radius } from '../../constants/theme';
 import Text from '../../components/ui/Text';
 import Button from '../../components/ui/Button';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import * as Animatable from 'react-native-animatable';
 
 export default function ForgotPasswordScreen() {
-  const router = useRouter();
-  const themeType = useUIStore((state) => state.theme);
-  const theme = getTheme(themeType);
-  const setTempEmail = useAuthStore((state) => state.setTempEmail);
-  const setOtpPurpose = useAuthStore((state) => state.setOtpPurpose);
+  const theme = getTheme(useUIStore((state) => state.theme));
+  const { setTempEmail, setOtpPurpose } = useAuthStore();
   
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isValid, setIsValid] = useState(false);
-  
-  const validateEmail = (text: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(text);
-  };
-  
-  const handleChangeEmail = (text: string) => {
-    setEmail(text);
-    setIsValid(validateEmail(text));
-    if (error) setError('');
-  };
-  
-  const handleRequestOTP = async () => {
-    if (!isValid) {
-      setError('Please enter a valid email address');
+
+  const handleSubmit = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email address');
       return;
     }
-    
-    Keyboard.dismiss();
-    setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      // Store email and purpose in auth store
+
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Store email and purpose for OTP verification
       setTempEmail(email);
       setOtpPurpose('reset-password');
+      
       // Navigate to OTP verification screen
-      router.push('/auth/otp-verification');
-    }, 1500);
+      router.replace('/auth/verify-otp' as any);
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      setError('Failed to process request. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
-  
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar style={themeType === 'dark' ? 'light' : 'dark'} />
-      
+      <TouchableOpacity 
+        style={styles.backButton} 
+        onPress={() => router.back()}
+      >
+        <MaterialCommunityIcons 
+          name="arrow-left" 
+          size={24} 
+          color={theme.text} 
+        />
+      </TouchableOpacity>
+
       <Animatable.View 
         animation="fadeInDown" 
         duration={600} 
         style={styles.header}
         useNativeDriver
       >
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => router.back()}
-        >
-          <MaterialCommunityIcons 
-            name="arrow-left" 
-            size={24} 
-            color={theme.text} 
-          />
-        </TouchableOpacity>
         <Text variant="h4" weight="bold" style={styles.title}>
-          Reset Password
+          Forgot Password
         </Text>
         <Text variant="body1" color="secondaryText" style={styles.subtitle}>
-          Enter your email to receive a one-time password
+          Enter your email address to receive a verification code
         </Text>
       </Animatable.View>
-      
+
       <Animatable.View 
         animation="fadeIn" 
         delay={300} 
         duration={600}
-        style={styles.form}
+        style={styles.content}
         useNativeDriver
       >
-        {error ? (
+        {error && (
           <Animatable.View 
             animation="shake" 
             style={[styles.errorContainer, { backgroundColor: theme.danger + '20' }]}
@@ -96,78 +83,43 @@ export default function ForgotPasswordScreen() {
           >
             <Text color="danger" style={styles.errorText}>{error}</Text>
           </Animatable.View>
-        ) : null}
-        
-        <View style={styles.inputContainer}>
-          <Text variant="body2" weight="semibold" style={styles.label}>
-            Email Address
-          </Text>
-          <View style={[
-            styles.inputWrapper, 
-            { 
-              backgroundColor: theme.card,
-              borderColor: error ? theme.danger : isValid && email ? theme.success : theme.border 
-            }
-          ]}>
+        )}
+
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
             <MaterialCommunityIcons 
               name="email-outline" 
-              size={20} 
+              size={24} 
               color={theme.secondaryText} 
+              style={styles.inputIcon}
             />
             <TextInput
-              style={[styles.input, { color: theme.text }]}
-              placeholder="Enter your email"
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                },
+              ]}
+              placeholder="Email address"
               placeholderTextColor={theme.secondaryText}
               value={email}
-              onChangeText={handleChangeEmail}
-              keyboardType="email-address"
+              onChangeText={setEmail}
               autoCapitalize="none"
-              autoCorrect={false}
+              autoComplete="email"
+              keyboardType="email-address"
+              editable={!loading}
             />
-            {isValid && email ? (
-              <Animatable.View animation="bounceIn" useNativeDriver>
-                <MaterialCommunityIcons 
-                  name="check-circle" 
-                  size={20} 
-                  color={theme.success} 
-                />
-              </Animatable.View>
-            ) : null}
           </View>
-        </View>
-        
-        <Animatable.View 
-          animation="fadeInUp" 
-          delay={600} 
-          duration={600}
-          useNativeDriver
-        >
+
           <Button
-            title={loading ? 'Sending OTP...' : 'Send OTP'}
-            variant="primary"
-            onPress={handleRequestOTP}
-            disabled={loading || !isValid}
+            title="Send Verification Code"
+            onPress={handleSubmit}
+            loading={loading}
             style={styles.button}
           />
-          
-          <View style={styles.loginContainer}>
-            <Text variant="body2" color="secondaryText">
-              Remember your password?
-            </Text>
-            <Link href="/auth/login" asChild>
-              <TouchableOpacity>
-                <Text 
-                  variant="body2" 
-                  color="primary" 
-                  weight="semibold" 
-                  style={styles.loginText}
-                >
-                  Log in
-                </Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
-        </Animatable.View>
+        </View>
       </Animatable.View>
     </View>
   );
@@ -178,20 +130,20 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.lg,
   },
-  header: {
-    marginTop: spacing.xxxl,
-    marginBottom: spacing.xl,
-  },
   backButton: {
+    marginTop: spacing.xl,
     marginBottom: spacing.md,
+  },
+  header: {
+    marginBottom: spacing.xl,
   },
   title: {
     marginBottom: spacing.xs,
   },
   subtitle: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
-  form: {
+  content: {
     flex: 1,
   },
   errorContainer: {
@@ -202,35 +154,26 @@ const styles = StyleSheet.create({
   errorText: {
     textAlign: 'center',
   },
+  form: {
+    marginTop: spacing.xl,
+  },
   inputContainer: {
-    marginBottom: spacing.lg,
-  },
-  label: {
-    marginBottom: spacing.xs,
-  },
-  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 50,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  inputIcon: {
+    marginRight: spacing.sm,
   },
   input: {
     flex: 1,
-    marginLeft: spacing.sm,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
     fontSize: 16,
   },
   button: {
     marginTop: spacing.md,
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: spacing.xl,
-  },
-  loginText: {
-    marginLeft: spacing.xs,
   },
 }); 

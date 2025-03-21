@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { Stack, router } from 'expo-router';
 import { useColorScheme, AppState, AppStateStatus } from 'react-native';
 import { ThemeProvider } from '@react-navigation/native';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { SplashScreen, Slot } from 'expo-router';
+import { SplashScreen } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as LocalAuthentication from 'expo-local-authentication';
 import Toast from 'react-native-toast-message';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Redirect } from 'expo-router';
 
 import { useAuthStore } from '../store/authStore';
 import { useCryptoStore } from '../store/cryptoStore';
@@ -16,9 +19,26 @@ import { useUIStore } from '../store/uiStore';
 import { getTheme } from '../constants/theme';
 import { AuthenticationService } from '../services/authenticationService';
 import AuthScreen from '../components/AuthScreen';
+import NotificationService from '../services/NotificationService';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+declare global {
+  namespace ReactNavigation {
+    interface RootParamList {
+      '/(tabs)/settings/profile': undefined;
+      '/(tabs)/settings/notifications': undefined;
+      '/(tabs)/settings/auth-settings': undefined;
+      '/(tabs)/settings/setup-pin': undefined;
+      '/(tabs)/settings/language': undefined;
+      '/(tabs)/settings/help': undefined;
+      '/(tabs)/settings/privacy': undefined;
+      '/(tabs)/settings/terms': undefined;
+      '/(tabs)/settings/about': undefined;
+    }
+  }
+}
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
@@ -53,13 +73,11 @@ export default function RootLayout() {
   }, []);
 
   const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    // Check if app is coming back to foreground
     if (
       appState.match(/inactive|background/) && 
       nextAppState === 'active' &&
       isAuthenticated
     ) {
-      // Check if biometric or PIN authentication is required
       const isPinSet = await AuthenticationService.isPinCodeSet();
       const isBiometricEnabled = await AuthenticationService.isBiometricEnabled();
       
@@ -71,7 +89,6 @@ export default function RootLayout() {
     setAppState(nextAppState);
   };
 
-  // Handle successful authentication
   const handleAuthSuccess = () => {
     setRequireAuth(false);
   };
@@ -89,11 +106,9 @@ export default function RootLayout() {
   useEffect(() => {
     async function prepare() {
       try {
-        // Initialize data
         await initializeData();
         await initializeWallet();
         
-        // Check if authentication is needed at app startup
         const isPinSet = await AuthenticationService.isPinCodeSet();
         const isBiometricEnabled = await AuthenticationService.isBiometricEnabled();
         
@@ -101,7 +116,6 @@ export default function RootLayout() {
           setRequireAuth(true);
         }
         
-        // Mark authentication check as complete
         setAuthCheckComplete(true);
       } catch (e) {
         console.warn('Error initializing data:', e);
@@ -119,70 +133,128 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, appIsReady]);
 
+  useEffect(() => {
+    // Initialize notifications when app starts
+    NotificationService.initialize();
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && requireAuth) {
+      router.replace('/auth-verify');
+    }
+  }, [isAuthenticated, requireAuth]);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      // We could perform additional auth checks here if needed
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
+    };
+    
+    checkAuth();
+  }, []);
+
   if (!fontsLoaded || !appIsReady || !authCheckComplete) {
     return null;
   }
 
   const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
 
+  // Show loading indicator while checking auth
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: getTheme(theme).background }}>
+        <ActivityIndicator color={getTheme(theme).primary} size="large" />
+      </View>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Redirect href="/auth/login" />;
+  }
+
+  // Redirect to verification if auth is required
+  if (requireAuth) {
+    return <Redirect href="/auth-verify" />;
+  }
+
   return (
-    <ThemeProvider value={navigationTheme}>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      {requireAuth ? (
-        <AuthScreen onAuthSuccess={handleAuthSuccess} />
-      ) : (
-        <Slot />
-      )}
-      <Toast
-        config={{
-          success: (props) => (
-            <View style={[
-              styles.toastContainer,
-              { borderLeftColor: getTheme(theme).success }
-            ]}>
-              <Text style={[styles.toastTitle, { color: getTheme(theme).text }]}>
-                {props.text1}
-              </Text>
-              {props.text2 && (
-                <Text style={[styles.toastMessage, { color: getTheme(theme).secondaryText }]}>
-                  {props.text2}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={navigationTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="modal" />
+          <Stack.Screen name="auth-verify" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/auth-settings" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/setup-pin" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/profile" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/language" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/help" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/privacy" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/terms" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)/settings/about" options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        {requireAuth && (
+          <AuthScreen onAuthSuccess={handleAuthSuccess} />
+        )}
+        <Toast
+          config={{
+            success: (props) => (
+              <View style={[
+                styles.toastContainer,
+                { borderLeftColor: getTheme(theme).success }
+              ]}>
+                <Text style={[styles.toastTitle, { color: getTheme(theme).text }]}>
+                  {props.text1}
                 </Text>
-              )}
-            </View>
-          ),
-          error: (props) => (
-            <View style={[
-              styles.toastContainer,
-              { borderLeftColor: getTheme(theme).danger }
-            ]}>
-              <Text style={[styles.toastTitle, { color: getTheme(theme).text }]}>
-                {props.text1}
-              </Text>
-              {props.text2 && (
-                <Text style={[styles.toastMessage, { color: getTheme(theme).secondaryText }]}>
-                  {props.text2}
+                {props.text2 && (
+                  <Text style={[styles.toastMessage, { color: getTheme(theme).secondaryText }]}>
+                    {props.text2}
+                  </Text>
+                )}
+              </View>
+            ),
+            error: (props) => (
+              <View style={[
+                styles.toastContainer,
+                { borderLeftColor: getTheme(theme).danger }
+              ]}>
+                <Text style={[styles.toastTitle, { color: getTheme(theme).text }]}>
+                  {props.text1}
                 </Text>
-              )}
-            </View>
-          ),
-          info: (props) => (
-            <View style={[
-              styles.toastContainer,
-              { borderLeftColor: getTheme(theme).info }
-            ]}>
-              <Text style={[styles.toastTitle, { color: getTheme(theme).text }]}>
-                {props.text1}
-              </Text>
-              {props.text2 && (
-                <Text style={[styles.toastMessage, { color: getTheme(theme).secondaryText }]}>
-                  {props.text2}
+                {props.text2 && (
+                  <Text style={[styles.toastMessage, { color: getTheme(theme).secondaryText }]}>
+                    {props.text2}
+                  </Text>
+                )}
+              </View>
+            ),
+            info: (props) => (
+              <View style={[
+                styles.toastContainer,
+                { borderLeftColor: getTheme(theme).info }
+              ]}>
+                <Text style={[styles.toastTitle, { color: getTheme(theme).text }]}>
+                  {props.text1}
                 </Text>
-              )}
-            </View>
-          ),
-        }}
-      />
-    </ThemeProvider>
+                {props.text2 && (
+                  <Text style={[styles.toastMessage, { color: getTheme(theme).secondaryText }]}>
+                    {props.text2}
+                  </Text>
+                )}
+              </View>
+            ),
+          }}
+        />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

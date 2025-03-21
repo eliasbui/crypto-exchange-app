@@ -7,7 +7,8 @@ export type NotificationType =
   | 'price' 
   | 'security' 
   | 'transaction' 
-  | 'promotion';
+  | 'promotion'
+  | 'system';
 
 export interface Notification {
   id: string;
@@ -30,15 +31,54 @@ interface NotificationState {
   loadNotifications: () => Promise<void>;
 }
 
+// Fake notification data
+const fakeNotifications: Omit<Notification, 'id' | 'timestamp'>[] = [
+  {
+    type: 'price',
+    title: 'Bitcoin Price Alert',
+    message: 'BTC has increased by 5% in the last hour',
+    isRead: false,
+  },
+  {
+    type: 'trade',
+    title: 'Trade Executed',
+    message: 'Your limit order for ETH has been filled',
+    isRead: true,
+  },
+  {
+    type: 'security',
+    title: 'New Login Detected',
+    message: 'A new login was detected from your device',
+    isRead: false,
+  },
+  {
+    type: 'transaction',
+    title: 'Deposit Successful',
+    message: 'Your deposit of $1,000 has been confirmed',
+    isRead: true,
+  },
+  {
+    type: 'promotion',
+    title: 'Special Offer',
+    message: 'Get 50% off trading fees this weekend',
+    isRead: false,
+  },
+  {
+    type: 'system',
+    title: 'System Maintenance',
+    message: 'Scheduled maintenance in 2 hours',
+    isRead: true,
+  }
+];
+
 const showToast = (notification: Notification) => {
   Toast.show({
-    type: notification.type === 'security' ? 'error' : 'success',
+    type: 'info',
     text1: notification.title,
     text2: notification.message,
     position: 'top',
     visibilityTime: 4000,
     autoHide: true,
-    topOffset: 50,
   });
 };
 
@@ -59,10 +99,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       unreadCount: state.unreadCount + 1,
     }));
 
-    // Show toast notification
     showToast(newNotification);
-
-    // Save to AsyncStorage
+    
     const notifications = [newNotification, ...get().notifications];
     AsyncStorage.setItem('notifications', JSON.stringify(notifications));
   },
@@ -78,7 +116,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       };
     });
 
-    // Save to AsyncStorage
     AsyncStorage.setItem('notifications', JSON.stringify(get().notifications));
   },
 
@@ -88,7 +125,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       unreadCount: 0,
     }));
 
-    // Save to AsyncStorage
     AsyncStorage.setItem('notifications', JSON.stringify(get().notifications));
   },
 
@@ -101,7 +137,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       };
     });
 
-    // Save to AsyncStorage
     AsyncStorage.setItem('notifications', JSON.stringify(get().notifications));
   },
 
@@ -119,6 +154,18 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           notifications,
           unreadCount: notifications.filter((n) => !n.isRead).length,
         });
+      } else {
+        // Load fake notifications if no stored notifications exist
+        const notifications = fakeNotifications.map((n, index) => ({
+          ...n,
+          id: (Date.now() - index * 60000).toString(), // Stagger timestamps
+          timestamp: Date.now() - index * 60000,
+        }));
+        set({
+          notifications,
+          unreadCount: notifications.filter((n) => !n.isRead).length,
+        });
+        AsyncStorage.setItem('notifications', JSON.stringify(notifications));
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
